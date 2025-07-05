@@ -1,103 +1,175 @@
-import Image from "next/image";
+"use client";
+
+import CircleSetup, { type CircleSetupProps } from '@/components/circle-setup';
+import MotorSetup, { type MotorSetupProps } from '@/components/motor-setup';
+import { Input } from '@/components/ui/input';
+import { useState } from 'react';
+
+// Types for calculation results
+type MisalignmentCorrections = {
+  OB_vertical: number;    // How much OB needs to move up (+) or down (-)
+  OB_horizontal: number;  // How much OB needs to move right (+) or left (-)
+  IB_vertical: number;    // How much IB needs to move up (+) or down (-)
+  IB_horizontal: number;  // How much IB needs to move right (+) or left (-)
+};
+
+// Function to calculate misalignment corrections
+function calculateMisalignmentCorrections(
+  motorData: MotorSetupProps,
+  circleData: CircleSetupProps,
+  bracketSag: string | number = "0"
+): MisalignmentCorrections | null {
+  // Check if required data is available
+  if (!motorData.OBtoIB || !motorData.IBtoF || !motorData.Fdia) {
+    return null;
+  }
+
+  // Convert all inputs to numbers
+  const OBtoIB = Number(motorData.OBtoIB);
+  const IBtoF = Number(motorData.IBtoF);
+  const Fdia = Number(motorData.Fdia);
+  
+  const Ftop = Number(circleData.Ftop || 0);
+  const Fbottom = Number(circleData.Fbottom || 0);
+  const Fleft = Number(circleData.Fleft || 0);
+  const Fright = Number(circleData.Fright || 0);
+  const Rtop = Number(circleData.Rtop || 0);
+  const Rbottom_ = Number(circleData.Rbottom || 0);
+  const Rleft = Number(circleData.Rleft || 0);
+  const Rright = Number(circleData.Rright || 0);
+  
+  const bracketSagNum = Number(bracketSag);
+  const Rbottom = Rbottom_ + bracketSagNum;
+
+  // Convert units: motor distances from cm to mm, face diameter from cm to mm
+  const OBtoIB_mm = OBtoIB * 10;
+  const IBtoF_mm = IBtoF * 10;
+  const Fdia_mm = Fdia * 10;
+  const totalDistance_mm = OBtoIB_mm + IBtoF_mm;
+
+  // Calculate face misalignment (average of opposite readings)
+  const faceVertical = -Ftop + Fbottom; // µm
+  const faceHorizontal = -Fright + Fleft; // µm
+
+  // Calculate rim misalignment (average of opposite readings)
+  const rimVertical = (Rtop - Rbottom) / 2; // µm
+  const rimHorizontal = (Rright - Rleft) / 2; // µm
+
+  // Calculate angular misalignment (rim readings / face diameter)
+  const angularVertical = faceVertical / Fdia_mm; // µm per mm
+  const angularHorizontal = faceHorizontal / Fdia_mm; // µm per mm
+
+  // Calculate corrections needed at each bearing position
+  // Face misalignment correction is distributed proportionally
+  // Angular misalignment creates additional offset based on distance
+
+  // For IB (Inboard Bearing):
+  const IB_vertical = angularVertical * IBtoF_mm + rimVertical;
+  const IB_horizontal = angularHorizontal * IBtoF_mm + rimHorizontal;
+
+  // For OB (Outboard Bearing):
+  const OB_vertical = angularVertical * totalDistance_mm + rimVertical;
+  const OB_horizontal = angularHorizontal * totalDistance_mm + rimHorizontal;
+
+  return {
+    OB_vertical: Math.round(OB_vertical * 1000) / 1000,
+    OB_horizontal: Math.round(OB_horizontal * 1000) / 1000,
+    IB_vertical: Math.round(IB_vertical * 1000) / 1000,
+    IB_horizontal: Math.round(IB_horizontal * 1000) / 1000,
+  };
+}
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [motorState, setMotorState] = useState<MotorSetupProps>({})
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const handleChangeMotor: (name: keyof MotorSetupProps, value: string) => void = (name, value) => {
+    setMotorState(prevState => ({
+      ...prevState,
+      [name]: value,
+    }));
+  }
+
+  const [circleState, setCircleState] = useState<CircleSetupProps>({});
+
+  const handleChangeCircle: (name: keyof CircleSetupProps, value: string) => void = (name, value) => {
+    setCircleState(prevState => ({
+      ...prevState,
+      [name]: value,
+    }));
+  }
+
+  const [sag, setSag] = useState<string>();
+
+  // Calculate misalignment corrections
+  const corrections = calculateMisalignmentCorrections(motorState, circleState, sag || 0);
+
+  return (
+    <main className="min-h-screen">
+      <section className='container mx-auto px-6 md:px-20 py-8 md:py-16 md:gap-20'>
+        <div className="w-full md:flex md:items-center ">
+          <MotorSetup state={motorState} onChange={handleChangeMotor} />
+          <CircleSetup state={circleState} onChange={handleChangeCircle} />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+        <div className='flex items-center mb-8'>
+          <p className="">Bracket Sag: </p>
+          <Input type='text' inputMode='decimal' placeholder='mm' value={sag} onChange={(e) => setSag(e.target.value)} className='h-min w-24 ml-2' />
+        </div>
+
+        {/* Display calculation results */}
+        {corrections && (
+          <div className='p-6 rounded-lg'>
+            <h2 className='text-xl font-bold mb-4'>Misalignment Corrections</h2>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+              <div>
+                <h3 className='text-lg font-semibold mb-2'>Outboard Bearing (OB)</h3>
+                <div className='space-y-2'>
+                  <div className='flex justify-between'>
+                    <span>Vertical movement:</span>
+                    <span className={`font-mono ${corrections.OB_vertical > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {corrections.OB_vertical > 0 ? '+' : ''}{corrections.OB_vertical} µm
+                      <span className='text-sm text-gray-500 ml-1'>
+                        ({corrections.OB_vertical > 0 ? 'up' : 'down'})
+                      </span>
+                    </span>
+                  </div>
+                  <div className='flex justify-between'>
+                    <span>Horizontal movement:</span>
+                    <span className={`font-mono ${corrections.OB_horizontal > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {corrections.OB_horizontal > 0 ? '+' : ''}{corrections.OB_horizontal} µm
+                      <span className='text-sm text-gray-500 ml-1'>
+                        ({corrections.OB_horizontal > 0 ? 'right' : 'left'})
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <h3 className='text-lg font-semibold mb-2'>Inboard Bearing (IB)</h3>
+                <div className='space-y-2'>
+                  <div className='flex justify-between'>
+                    <span>Vertical movement:</span>
+                    <span className={`font-mono ${corrections.IB_vertical > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {corrections.IB_vertical > 0 ? '+' : ''}{corrections.IB_vertical} µm
+                      <span className='text-sm text-gray-500 ml-1'>
+                        ({corrections.IB_vertical > 0 ? 'up' : 'down'})
+                      </span>
+                    </span>
+                  </div>
+                  <div className='flex justify-between'>
+                    <span>Horizontal movement:</span>
+                    <span className={`font-mono ${corrections.IB_horizontal > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      {corrections.IB_horizontal > 0 ? '+' : ''}{corrections.IB_horizontal} µm
+                      <span className='text-sm text-gray-500 ml-1'>
+                        ({corrections.IB_horizontal > 0 ? 'right' : 'left'})
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+    </main>
   );
 }
